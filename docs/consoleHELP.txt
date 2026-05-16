@@ -1,0 +1,92 @@
+Основные «свойства» консоли и способы их изменить
+
+    Цвет текста и фона
+    Функция: SetConsoleTextAttribute(hConsole, wAttributes)
+    wAttributes — WORD (16 бит), где младшие 4 бита — цвет текста, старшие 4 бита — цвет фона.
+    Цвета задаются константами: FOREGROUND_RED, FOREGROUND_BLUE, FOREGROUND_GREEN, FOREGROUND_INTENSITY (усиление/яркость) и аналогичные BACKGROUND_*.
+    Например:
+
+        FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY = ярко-жёлтый текст.
+
+        BACKGROUND_BLUE = синий фон.
+        Если установить цвет, то весь последующий вывод (через cout и т.д.) станет этого цвета, пока не изменишь снова.
+        Зачем для змейки: цветная голова, еда, препятствия, стены — без изменения размера шрифта.
+
+    Курсор (мигающий прямоугольник)
+    Мы его уже упоминали. Структура CONSOLE_CURSOR_INFO содержит два поля:
+
+        dwSize — процент высоты ячейки (от 1 до 100), обычно 25.
+
+        bVisible — TRUE (показать), FALSE (скрыть).
+        Функция: SetConsoleCursorInfo(hConsole, &cursorInfo);
+        Свойство: видимость и размер курсора. Скрытый курсор — обязателен для игры.
+
+    Заголовок окна консоли
+    Функция: SetConsoleTitle(TEXT("Мой Заголовок"));
+    Макрос TEXT нужен для совместимости с Unicode/ANSI, но можно просто строку в кавычках, если проект с многобайтовой кодировкой.
+    Свойство: текст в заголовке окна.
+
+    Размер буфера экрана (в символах)
+    Буфер — это логическая сетка символов, которая может быть больше видимого окна.
+    Функция: SetConsoleScreenBufferSize(hConsole, dwSize), где dwSize — структура COORD с X (ширина) и Y (высота).
+    Свойство: сколько столбцов и строк может содержать консоль. Обычно не трогают, если не надо прокручивать.
+
+    Позиция и размер самого окна
+    Можно задать прямоугольник видимой области через SetConsoleWindowInfo(...). Это относительное смещение внутри буфера. Для начала не нужно.
+
+    Кодировка ввода/вывода
+    Ты уже пользовался SetConsoleCP(CP_UTF8) и SetConsoleOutputCP. Это тоже «свойства»: определяют, как будут интерпретироваться байты символов.
+
+    1. FillConsoleOutputAttribute
+cpp
+
+BOOL FillConsoleOutputAttribute(
+  HANDLE  hConsoleOutput,   // наш дескриптор
+  WORD    wAttribute,       // атрибут цвета (комбинация Text + Background)
+  DWORD   nLength,          // сколько ячеек заполнить
+  COORD   dwWriteCoord,     // начальные координаты (обычно {0,0})
+  LPDWORD lpNumberOfAttrsWritten // указатель на DWORD, куда запишется количество заполненных ячеек
+);
+
+Она заполняет указанным цветовым атрибутом заданное количество ячеек, начиная с позиции dwWriteCoord. Сами символы в ячейках она не трогает.
+
+2. FillConsoleOutputCharacter
+cpp
+
+BOOL FillConsoleOutputCharacter(
+  HANDLE  hConsoleOutput,
+  CHAR    cCharacter,       // символ-заполнитель (обычно пробел ' ')
+  DWORD   nLength,
+  COORD   dwWriteCoord,
+  LPDWORD lpNumberOfCharsWritten
+);
+
+Заполняет ячейки указанным символом (пробелом).
+
+Чтобы залить весь экран красным, нужно:
+
+    Узнать размер буфера (количество столбцов и строк). Это делается через GetConsoleScreenBufferInfo.
+
+    Вызвать FillConsoleOutputCharacter для заполнения всех ячеек пробелами.
+
+    Вызвать FillConsoleOutputAttribute с атрибутом, содержащим красный фон (например, BACKGROUND_RED | BACKGROUND_INTENSITY для ярко-красного) и чёрный текст (или не важно, так как пробел невидим).
+
+После этого весь экран станет красным, и можно поверх выводить текст другим цветом.
+
+Вот конкретный рецепт без затей с цветами, который можно вставить вместо system("cls"):
+// Получаем размер буфера
+CONSOLE_SCREEN_BUFFER_INFO csbi;
+GetConsoleScreenBufferInfo(hConsole, &csbi);
+DWORD totalCells = csbi.dwSize.X * csbi.dwSize.Y;
+COORD origin = {0, 0};
+
+// Заливаем пробелами
+DWORD written;
+FillConsoleOutputCharacter(hConsole, ' ', totalCells, origin, &written);
+
+// Заливаем СТАНДАРТНЫМ атрибутом (обычный белый на чёрном)
+// Если хочешь оставить настройки пользователя, можно взять csbi.wAttributes
+FillConsoleOutputAttribute(hConsole, csbi.wAttributes, totalCells, origin, &written);
+
+// Курсор возвращаем в начало, если нужно (но можно не трогать)
+SetConsoleCursorPosition(hConsole, origin);
