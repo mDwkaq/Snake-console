@@ -2,13 +2,16 @@
 #include "Sprites.hpp"
 #include "Snake.hpp"
 #include "InputHandler.hpp"
+#include "Renderer.hpp"
+#include "Field.hpp"
 
 #include <Windows.h>
 #include <iostream>
 
-// --- бумага и ручка ---
+        // --- бумага и ручка ---
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
+//void clearScreen(HANDLE hConsole);
 
 int main()
 {
@@ -17,62 +20,78 @@ int main()
     SetConsoleTitle(TEXT("Snake"));
 
 #pragma region cursor
-    	// --- скрыть курсор ---
+        // --- скрыть курсор ---
 	CONSOLE_CURSOR_INFO cursorInfo;
 	cursorInfo.dwSize = 1;
 	cursorInfo.bVisible = FALSE;
 	SetConsoleCursorInfo(hConsole, &cursorInfo);
 #pragma endregion
 
-    // --- Время. изначальные значения ---
+#pragma region default_setting
+          // --- Время. изначальные значения ---
     auto lastUpdate = GameConfig::Clock::now();
-
-    // --- Координаты. изначальные значения ---
+          // --- Координаты. изначальные значения ---
     Snake game;
+    Field field(GameConfig::FIELD_WIDTH, GameConfig::FIELD_HEIGHT);
+    game.setField(&field);
+    game.centerInField();
+          // --- работаем с этой консолью ---
+    Renderer renderer(hConsole);
+    renderer.drawField(field);
+    renderer.drawSnake(game);
+#pragma endregion
 
-    // --- Изначальный рендеринг 1 кадр ---
-    const auto& segs = game.getSegments();
-    for (size_t i = 0; i < segs.size(); ++i) {
-        SetConsoleCursorPosition(hConsole, segs[i]);
-        std::cout << (i == 0 ? Sprites::SPRITE_HEAD : Sprites::SPRITE_BODY);
-    }
+
+    // --- исправление бага быстрого нажатия клавиш ---
+    bool directionChangedThisTick{ false };
 
     while (true) {
         // --- Обработка ввода ---
         if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) break;
-        processInput(game);
+        if (!directionChangedThisTick) {
+            if (processInput(game)) directionChangedThisTick = true;
+        }
 
         // --- Игровой шаг ---
         auto now = GameConfig::Clock::now();
         if (now - lastUpdate >= GameConfig::TICK_DURATION) {
 
             // 1. Сохраняем старые концы
-            COORD oldHead = game.getSegments().front();
-            COORD oldTail = game.getSegments().back();
-
-            game.snakeMove();
-
-            // Стираем старый хвост
-            SetConsoleCursorPosition(hConsole, oldTail);
-            std::cout << ' ';
-
-            // Старую голову перерисовываем как тело
-            SetConsoleCursorPosition(hConsole, oldHead);
-            std::cout << Sprites::SPRITE_BODY;
-
-            // Новую голову рисуем
-            COORD newHead = game.getSegments().front();
-            SetConsoleCursorPosition(hConsole, newHead);
-            std::cout << Sprites::SPRITE_HEAD;
-
+            auto oldHead = game.getSegments().front();
+            auto oldTail = game.getSegments().back();
+            auto oldSegments = game.getSegments();
+            bool collision = game.snakeMove();
+            if (collision) {
+                renderer.clearCells(oldSegments);
+                renderer.drawSnake(game);
+            }
+            else {
+                // Стираем старый хвост
+                renderer.clearCell(oldTail.X, oldTail.Y);
+                // Старую голову перерисовываем как тело
+                renderer.drawChar(oldHead.X, oldHead.Y, Sprites::SPRITE_BODY);
+                // Новую голову рисуем
+                COORD newHead = game.getSegments().front();
+                renderer.drawChar(newHead.X, newHead.Y, Sprites::SPRITE_HEAD);
+            }
             lastUpdate = now;
+            directionChangedThisTick = false;
         }
-        else {
-            GameConfig::sleep_for(1ms);
-             }
-
+        else GameConfig::sleep_for(1ms);
     }
-
+    COORD exitPos = { 0, GameConfig::FIELD_HEIGHT + 1 }; // например, 0,16
+    SetConsoleCursorPosition(hConsole, exitPos);
+    std::cout << std::endl;
     return 0;
 }
 
+//void clearScreen(HANDLE hConsole) {
+//    CONSOLE_SCREEN_BUFFER_INFO csbi;
+//    GetConsoleScreenBufferInfo(hConsole, &csbi);
+//    DWORD totalCells = csbi.dwSize.X * csbi.dwSize.Y;
+//    COORD origin = { 0, 0 };
+//    DWORD written;
+//    FillConsoleOutputCharacter(hConsole, ' ', totalCells, origin, &written);
+//    FillConsoleOutputAttribute(hConsole, csbi.wAttributes, totalCells, origin, &written);
+//    SetConsoleCursorPosition(hConsole, origin);
+//}

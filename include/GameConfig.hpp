@@ -8,11 +8,9 @@ namespace GameConfig {
     using namespace std::chrono_literals;
 
     // --- временные размеры поля ---
-    inline constexpr int FIELD_WIDTH{ 20 };
-    inline constexpr int FIELD_HEIGHT{ 15 };
-    // --- поля для ошибок тест ---
-    inline constexpr int FIELD_W_ERROR{ -1 };
-    inline constexpr int FIELD_H_ERROR{ -1 };
+    inline constexpr int FIELD_WIDTH{ 40};
+    inline constexpr int FIELD_HEIGHT{ 20 };
+    
 
     // --- время ---
     inline constexpr auto TICK_DURATION{ 200ms };

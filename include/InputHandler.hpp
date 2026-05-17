@@ -4,4 +4,4 @@
 #include "GameConfig.hpp"
 #include "Snake.hpp"
 
-void processInput(Snake& game);
+bool processInput(Snake& game);
